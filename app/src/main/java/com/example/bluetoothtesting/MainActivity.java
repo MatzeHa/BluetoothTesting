@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+
 import android.Manifest;
 
 import android.app.Activity;
@@ -18,14 +19,27 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.FileSystemNotFoundException;
+import java.util.ArrayList;
 import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
+
+    private static boolean isConnected;
+    private static BluetoothSocket btSocket;
+    private ArrayList<Thread> threads = new ArrayList<Thread>();
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,18 +67,36 @@ public class MainActivity extends AppCompatActivity {
 
         // Button Scan
         BluetoothScanner btScan = new BluetoothScanner(this);
+        btScan.start();
         btnScan.setOnClickListener(view -> btScan.startScanning());
 
         // Button Connect
-        ConnectThread connectThread = new ConnectThread(bluetoothAdapter);
-        btnConnect.setOnClickListener(view -> connectThread.run());
+        final ConnectThread[] connectThread = new ConnectThread[1];
+        // btnConnect.setOnClickListener(view -> connectThread.run());
+
+        threads.add(connectThread[0]);
+        if (threads.get(0) != null) {
+            System.out.println(threads.get(0).getName());
+            Toast.makeText(getBaseContext(), threads.get(0).getName(), Toast.LENGTH_LONG).show();
+        }
+        btnConnect.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                connectThread[0] = new ConnectThread(bluetoothAdapter);
+                connectThread[0].start();
+            }
+        });
 
         // Button Send Data
 
         btnSendData.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-
+                if (isConnected) {
+                    IOThread ioThread = new IOThread(btSocket);
+                    ioThread.start();
+                    byte[] message = "Pimmeline".getBytes();
+                    ioThread.write(message);
+                }
             }
         });
 
@@ -74,7 +106,7 @@ public class MainActivity extends AppCompatActivity {
     // Function for Requesting Permissions
     private boolean checkLocationPermission() {
         if (ContextCompat.checkSelfPermission(MainActivity.this,
-                Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED){
+                Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(MainActivity.this,
                     new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
             return true;
@@ -83,13 +115,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-
     // Function for activating Bluetooth
     public void switchBTOn() {
         // If BT is turned off, User has to turn on BT
         Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
         checkBTOn.launch(enableBtIntent);
     }
+
     ActivityResultLauncher<Intent> checkBTOn = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
@@ -97,7 +129,8 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(getBaseContext(),
                             "Bluetooth konnte nicht angeschaltet werden, " +
                                     "bitte manuell einschalten",
-                            Toast.LENGTH_LONG).show();                    }
+                            Toast.LENGTH_LONG).show();
+                }
             });
 
     // On Destroy
@@ -105,7 +138,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         // Don't forget to unregister the ACTION_FOUND receiver.
-       // unregisterReceiver(receiver);
+        // unregisterReceiver(receiver);
     }
 
 
@@ -134,7 +167,7 @@ public class MainActivity extends AppCompatActivity {
         private final BroadcastReceiver bluetoothReceiver = new BroadcastReceiver() {
             public void onReceive(Context context, Intent intent) {
 
-            String action = intent.getAction();
+                String action = intent.getAction();
 
                 if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                     BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
@@ -143,9 +176,9 @@ public class MainActivity extends AppCompatActivity {
 
                     System.out.println(deviceName + " " + deviceAddress);
                     if (deviceAddress.equals("00:1A:7A:01:18:23")) {
-                        Toast.makeText(getBaseContext(),"DEVICE FOUND!",
+                        Toast.makeText(getBaseContext(), "DEVICE FOUND!",
                                 Toast.LENGTH_SHORT).show();
-                        Toast.makeText(getBaseContext(),deviceName + " " + deviceAddress,
+                        Toast.makeText(getBaseContext(), deviceName + " " + deviceAddress,
                                 Toast.LENGTH_SHORT).show();
                     }
                 }
@@ -166,6 +199,7 @@ public class MainActivity extends AppCompatActivity {
 
     // Class for Connecting to Bluetooth-Server
     private class ConnectThread extends Thread {
+        Handler handler = new Handler(Looper.getMainLooper());
         private final BluetoothSocket mmSocket;
         private final BluetoothDevice mmDevice;
         private final BluetoothAdapter bluetoothAdapter;
@@ -196,6 +230,8 @@ public class MainActivity extends AppCompatActivity {
 
             try {
                 mmSocket.connect();
+                MainActivity.btSocket = mmSocket;
+                MainActivity.isConnected = true;
             } catch (IOException connectException) {
                 // Unable to connect; close the socket and return.
                 try {
@@ -203,15 +239,20 @@ public class MainActivity extends AppCompatActivity {
                 } catch (IOException closeException) {
                     System.out.println("Could not close the client socket" + closeException);
                 }
-                return;
+            }
+            // TODO: When called the second time...
+            if (MainActivity.isConnected) {
+                // The connection attempt succeeded. Now do Stuff:
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(MainActivity.this, "CONNECTED! YAAAY!!!",
+                                Toast.LENGTH_LONG).show();
+                    }
+                });
             }
 
-            // The connection attempt succeeded. Perform work associated with
-            // the connection in a separate thread.
-            //manageMyConnectedSocket(mmSocket);
-
-            Toast.makeText(getBaseContext(), "YAY! CONNECTED!",
-                    Toast.LENGTH_LONG).show();        }
+        }
 
         // Closes the client socket and causes the thread to finish.
         public void cancel() {
@@ -222,6 +263,124 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+
+
+    private interface MessageConstants {
+        public static final int MESSAGE_READ = 0;
+        public static final int MESSAGE_WRITE = 1;
+        public static final int MESSAGE_TOAST = 2;
+
+        // ... (Add other message types here as needed.)
+    }
+
+
+
+    private class IOThread extends Thread {
+        private final Handler handler = new Handler(Looper.getMainLooper());
+        private final BluetoothSocket mmSocket;
+        private final InputStream mmInStream;
+        private final OutputStream mmOutStream;
+        private byte[] mmBuffer; // mmBuffer store for the stream
+
+
+        String TAG = "MY_APP_DEBUG_TAG";
+
+        public IOThread(BluetoothSocket socket) {
+            mmSocket = socket;
+            InputStream tmpIn = null;
+            OutputStream tmpOut = null;
+
+            // Get the input and output streams; using temp objects because
+            // member streams are final.
+            try {
+                tmpIn = socket.getInputStream();
+            } catch (IOException e) {
+                Log.e(TAG, "Error occurred when creating input stream", e);
+            }
+            try {
+                tmpOut = socket.getOutputStream();
+            } catch (IOException e) {
+                Log.e(TAG, "Error occurred when creating output stream", e);
+            }
+
+            mmInStream = tmpIn;
+            mmOutStream = tmpOut;
+        }
+
+        public void run() {
+
+            mmBuffer = new byte[1024];
+            int numBytes; // bytes returned from read()
+
+            // Keep listening to the InputStream until an exception occurs.
+            while (true) {
+                try {
+                    // Read from the InputStream.
+                    numBytes = mmInStream.read(mmBuffer);
+                    // Send the obtained bytes to the UI activity.
+
+                    int finalNumBytes = numBytes;
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(MainActivity.this, "finalNumBytes",
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    });
+
+
+
+                } catch (IOException e) {
+                    Log.d(TAG, "Input stream was disconnected", e);
+                    break;
+                }
+            }
+        }
+
+        // Call this from the main activity to send data to the remote device.
+        public void write(byte[] bytes) {
+            try {
+                mmOutStream.write(bytes);
+                // Share the sent message with the UI activity.
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(MainActivity.this, "Nachricht Gesendet",
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
+
+            } catch (IOException e) {
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(MainActivity.this,
+                                "Error occurred when sending data",
+                                Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        }
+
+        // Call this method from the main activity to shut down the connection.
+        public void cancel() {
+            try {
+                mmSocket.close();
+            } catch (IOException e) {
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(MainActivity.this,
+                                "Cancel",
+                                Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        }
+    }
+
+
+
 
 }
 

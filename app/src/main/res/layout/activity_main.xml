@@ -22,8 +22,8 @@
         android:id="@+id/btn_scan"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="68dp"
-        android:layout_marginTop="408dp"
+        android:layout_marginStart="48dp"
+        android:layout_marginTop="128dp"
         android:text="Scan"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textView" />
@@ -32,9 +32,10 @@
         android:id="@+id/btn_connect"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="76dp"
-        android:layout_marginTop="408dp"
+        android:layout_marginStart="84dp"
+        android:layout_marginTop="128dp"
         android:text="Connect"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/btn_scan"
         app:layout_constraintTop_toBottomOf="@+id/textView" />
 
@@ -42,9 +43,10 @@
         android:id="@+id/btn_senddata"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="100dp"
+        android:layout_marginTop="80dp"
         android:text="Send Data"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.498"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/btn_scan" />
 
