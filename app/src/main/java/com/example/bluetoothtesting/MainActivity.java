@@ -30,15 +30,16 @@ import android.widget.Toast;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystemNotFoundException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static boolean isConnected;
     private static BluetoothSocket btSocket;
-    private ArrayList<Thread> threads = new ArrayList<Thread>();
 
 
     @Override
@@ -74,13 +75,10 @@ public class MainActivity extends AppCompatActivity {
         final ConnectThread[] connectThread = new ConnectThread[1];
         // btnConnect.setOnClickListener(view -> connectThread.run());
 
-        threads.add(connectThread[0]);
-        if (threads.get(0) != null) {
-            System.out.println(threads.get(0).getName());
-            Toast.makeText(getBaseContext(), threads.get(0).getName(), Toast.LENGTH_LONG).show();
-        }
+
         btnConnect.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
+
                 connectThread[0] = new ConnectThread(bluetoothAdapter);
                 connectThread[0].start();
             }
@@ -91,12 +89,11 @@ public class MainActivity extends AppCompatActivity {
         btnSendData.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if (isConnected) {
-                    IOThread ioThread = new IOThread(btSocket);
-                    ioThread.start();
-                    byte[] message = "Pimmeline".getBytes();
-                    ioThread.write(message);
-                }
+                IOThread ioThread = new IOThread(btSocket);
+                ioThread.start();
+                byte[] message = "Pimmeline".getBytes();
+                ioThread.write(message);
+
             }
         });
 
@@ -173,8 +170,6 @@ public class MainActivity extends AppCompatActivity {
                     BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                     String deviceName = device.getName();
                     String deviceAddress = device.getAddress();
-
-                    System.out.println(deviceName + " " + deviceAddress);
                     if (deviceAddress.equals("00:1A:7A:01:18:23")) {
                         Toast.makeText(getBaseContext(), "DEVICE FOUND!",
                                 Toast.LENGTH_SHORT).show();
@@ -224,14 +219,28 @@ public class MainActivity extends AppCompatActivity {
         }
 
         public void run() {
-            System.out.println("RUN");
+
+            /*
+            // TODO: When called the second time...
+            if (MainActivity.isConnected) {
+                // The connection attempt succeeded. Now do Stuff:
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(MainActivity.this, "Bluetooth ist bereits verbunden",
+                                Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+
+            */
             // Cancel discovery because it otherwise slows down the connection.
             bluetoothAdapter.cancelDiscovery();
 
             try {
                 mmSocket.connect();
                 MainActivity.btSocket = mmSocket;
-                MainActivity.isConnected = true;
+
             } catch (IOException connectException) {
                 // Unable to connect; close the socket and return.
                 try {
@@ -240,19 +249,11 @@ public class MainActivity extends AppCompatActivity {
                     System.out.println("Could not close the client socket" + closeException);
                 }
             }
-            // TODO: When called the second time...
-            if (MainActivity.isConnected) {
-                // The connection attempt succeeded. Now do Stuff:
-                handler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(MainActivity.this, "CONNECTED! YAAAY!!!",
-                                Toast.LENGTH_LONG).show();
-                    }
-                });
-            }
+
 
         }
+
+
 
         // Closes the client socket and causes the thread to finish.
         public void cancel() {
@@ -317,24 +318,28 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     // Read from the InputStream.
                     numBytes = mmInStream.read(mmBuffer);
-                    // Send the obtained bytes to the UI activity.
 
-                    int finalNumBytes = numBytes;
+                    String received_msg = new String(mmBuffer, "UTF-8");
+                    // System.out.println(received_msg);
+                    System.out.println(numBytes);
+
+                    if (numBytes == 0){
+                        continue;
+                    }
                     handler.post(new Runnable() {
                         @Override
                         public void run() {
-                            Toast.makeText(MainActivity.this, "finalNumBytes",
+                            Toast.makeText(MainActivity.this, received_msg,
                                     Toast.LENGTH_SHORT).show();
                         }
                     });
-
-
-
                 } catch (IOException e) {
-                    Log.d(TAG, "Input stream was disconnected", e);
-                    break;
-                }
+                Log.d(TAG, "Input stream was disconnected", e);
+                break;
             }
+
+
+        }
         }
 
         // Call this from the main activity to send data to the remote device.
